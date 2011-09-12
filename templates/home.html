@@ -1,29 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <a href="#" class="btn danger" id="delete-bookmarks">Delete</a>
+<a href="#" class="btn danger" id="delete-bookmarks">Delete</a>
 
-  <table class="zebra-striped">
-    <thead>
-      <tr>
-        <th colspan="2">All Bookmarks</th>
+<table class="zebra-striped">
+  <thead>
+    <tr>
+      <th colspan="2">All Bookmarks</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for bookmark in bookmarks %}
+      <tr class="bookmark">
+        <td>
+          <input type="checkbox" name="bookmark" value="{{ bookmark._id }}">
+          {{ bookmark.get('status') }}
+          <a href="{{ bookmark.url }}">{{ bookmark.title }}</a>
+        </td>
+        <td>
+          <a href="{{ reverse_url('edit', bookmark._id) }}">Edit</a>
+          <!--<a href="#" class="btn small danger">Delete</a>-->
+        </td>
       </tr>
-    </thead>
-    <tbody>
-      {% for bookmark in bookmarks %}
-        <tr class="bookmark">
-          <td>
-            <input type="checkbox" name="bookmark" value="{{ bookmark._id }}">
-            <a href="{{ bookmark.url }}">{{ bookmark.title }}</a>
-          </td>
-          <td>
-            <a href="{{ reverse_url('edit', bookmark._id) }}">Edit</a>
-            <!--<a href="#" class="btn small danger">Delete</a>-->
-          </td>
-        </tr>
-      {% end %}
-    </tbody>
-  </table>
+    {% end %}
+  </tbody>
+</table>
 {% end %}
 
 {% block scripts %}

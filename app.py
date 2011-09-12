@@ -268,6 +268,7 @@ class DeleteMultipleBookmarksHandler(BaseHandler):
       'user': self.current_user._id, '_id': {'$in': ids}})
     self.finish()
 
+
 def compute_tags(db, user):
   count = collections.defaultdict(int)
   tags = []
@@ -283,7 +284,8 @@ def compute_tags(db, user):
       'count': count,
     })
   db.tags.remove({'user': user._id})
-  db.tags.insert(tags)
+  if tags:
+    db.tags.insert(tags)
 
 def main():
   tornado.options.parse_command_line()
