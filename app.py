@@ -13,7 +13,9 @@ from tornado.options import define, options
 from tornado.web import url
 
 import mongoengine
+import pylibmc
 import yaml
+import pymongo
 
 # App imports
 import forms
@@ -35,6 +37,8 @@ class Application(tornado.web.Application):
       url(r'/import', ImportHandler, name='import'),
       url(r'/edit/(?P<id>\w+)', EditBookmarkHandler, name='edit'),
       url(r'/new', NewBookmarkHandler, name='new'),
+      url(r'/b', BookmarkletHandler, name='bookmarklet'),
+      url(r'/tags', TagsHandler, name='tags'),
     ]
     settings = dict(
       debug=self.config.debug,
@@ -56,6 +60,14 @@ class Application(tornado.web.Application):
       self._config = tornado.web._O(yaml.load(stream))
     return self._config
 
+  @property
+  def memcache(self):
+    if not hasattr(self, '_memcache'):
+      self._memcache = pylibmc.Client(
+        self.config.memcache_servers,
+        binary=True, behaviors={"tcp_nodelay": True, "ketama": True})
+    return self._memcache
+
 
 class BaseHandler(tornado.web.RequestHandler):
   def get_current_user(self):
@@ -63,6 +75,18 @@ class BaseHandler(tornado.web.RequestHandler):
     if not user_id:
       return None
     return models.User.objects(id=user_id).first()
+
+  def render_string(self, template_name, **kwargs):
+    if self.current_user is not None:
+      tags = self.application.memcache.get('%s/tags' % self.current_user.id)
+      if tags is None:
+        tags = list(models.Tag.objects.filter(user=self.current_user) \
+                                 .order_by('-count').limit(20))
+        self.application.memcache.set('%s/tags' % self.current_user.id, tags)
+    else:
+      tags = []
+    return tornado.web.RequestHandler.render_string(
+        self, template_name, popular_tags=tags, IS_DEBUG=self.application.config.debug, **kwargs)
 
 
 class IndexHandler(BaseHandler):
@@ -107,8 +131,19 @@ class LogoutHandler(BaseHandler):
 class HomeHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
-    bookmarks = models.Bookmark.objects.filter(user=self.current_user)[:25]
-    self.render('home.html', bookmarks=bookmarks)
+    # self.current_user.compute_tags()
+    query = {'user.$id': self.current_user.id}
+
+    tag = self.get_argument('tag', None)
+    if tag is not None:
+      query['tags'] = tag
+
+    bookmarks = models.Bookmark._get_collection().find(
+        query,
+        sort=[('modified', pymongo.DESCENDING)],
+        skip=int(self.get_argument('offset', 0)),
+        limit=25)
+    self.render('home.html', bookmarks=(tornado.web._O(b) for b in bookmarks))
 
 
 class ImportHandler(BaseHandler):
@@ -158,12 +193,38 @@ class NewBookmarkHandler(BaseHandler):
   def post(self):
     form = forms.BookmarkForm(self)
     if form.validate():
-      bookmark = models.Bookmark(user=self.current_user)
+      bookmark = self.current_user.get_bookmark_by_url(form.url.data)
+      if bookmark is None:
+        bookmark = models.Bookmark(user=self.current_user)
       form.populate_obj(bookmark)
       bookmark.save()
       self.redirect(self.reverse_url('home'))
     else:
       self.render('new.html', form=form)
+
+
+class BookmarkletHandler(BaseHandler):
+  @tornado.web.authenticated
+  def get(self):
+    form = forms.BookmarkletForm(self)
+    if form.validate():
+      if not form.title.data:
+        form.title.data = form.url.data
+      bookmark = self.current_user.get_bookmark_by_url(form.url.data)
+      if bookmark is None:
+        bookmark = models.Bookmark(user=self.current_user)
+      form.populate_obj(bookmark)
+      bookmark.save()
+      self.write('oldu')
+    else:
+      self.write('%s' % form.errors)
+
+
+class TagsHandler(BaseHandler):
+  @tornado.web.authenticated
+  def get(self):
+    self.render('tags.html',
+        tags=models.Tag.objects.filter(user=self.current_user).limit(50).order_by('-count'))
 
 
 def main():

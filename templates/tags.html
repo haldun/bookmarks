@@ -4,17 +4,17 @@
   <table class="zebra-striped">
     <thead>
       <tr>
-        <th colspan="2">All Bookmarks</th>
+        <th colspan="2">All Tags</th>
       </tr>
     </thead>
     <tbody>
-      {% for bookmark in bookmarks %}
+      {% for tag in tags %}
         <tr>
           <td>
-            <a href="{{ bookmark.url }}">{{ bookmark.title }}</a>
+            <a href="">{{ tag.name }}</a>
           </td>
           <td>
-            <a href="{{ reverse_url('edit', bookmark._id) }}">Edit</a>
+            {{ tag.count }}
           </td>
         </tr>
       {% end %}

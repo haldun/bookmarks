@@ -3,3 +3,4 @@ h1,h2,h3,h4 { font-family: 'Open Sans'; font-weight:400;}
 #q {width: 300px}
 .sidebar { position:fixed }
 form.bookmark input[type=text], form.bookmark textarea { width: 500px}
+.drag{ cursor:move }

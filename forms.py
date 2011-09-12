@@ -1,6 +1,9 @@
 from wtforms import *
 from wtforms.validators import *
 
+import wtforms.fields
+import wtforms.widgets
+
 from util import MultiValueDict
 
 class BaseForm(Form):
@@ -11,8 +14,21 @@ class BaseForm(Form):
         formdata.setlist(name, handler.get_arguments(name))
     Form.__init__(self, formdata, obj=obj, prefix=prefix, **kwargs)
 
+class TagListField(wtforms.fields.Field):
+  widget = wtforms.widgets.TextInput()
 
-# TODO Put your forms here
+  def _value(self):
+    if self.data:
+      return u', '.join(self.data)
+    return u''
+
+  def process_formdata(self, valuelist):
+    if valuelist:
+      self.data = list(set(x.strip().lower() for x in valuelist[0].strip().split(',')))
+      self.data.sort()
+    else:
+      self.data = []
+
 
 class HelloForm(BaseForm):
   planet = TextField('name', validators=[Required()])
@@ -22,3 +38,11 @@ class BookmarkForm(BaseForm):
   title = TextField('Title', [Required()])
   url = TextField('Url', [Required()])
   description = TextAreaField('Description')
+  tags = TagListField('Tags')
+
+
+class BookmarkletForm(BaseForm):
+  title = TextField('Title')
+  url = TextField('Url', [Required()])
+  description = TextAreaField('Description')
+  tags = TagListField('Tags')

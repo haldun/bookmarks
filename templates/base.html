@@ -38,7 +38,7 @@
       {% block sidebar %}
         <h4>Bookmarklet</h4>
         <p>
-          <a href="" class="btn primary">Drag me to bookmarks bar</a>
+          <a href="" class="btn primary drag">Drag me to bookmarks bar</a>
         </p>
         <h4>Timeline</h4>
         <ul class="unstyled">
@@ -47,6 +47,10 @@
           <li><a href="">2011 June</a></li>
         </ul>
         <h4>Tags</h4>
+        {% for tag in popular_tags %}
+          <a href="{{ reverse_url('home') }}?tag={{ tag.name }}">{{ tag.name }} ({{ tag.count }})</a> •
+        {% end %}
+        <a href="{{ reverse_url('tags') }}">See all tags</a>
       {% end %}
     </div>
     <div class="content">
