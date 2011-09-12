@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
+  <a href="#" class="btn danger" id="delete-bookmarks">Delete</a>
+
   <table class="zebra-striped">
     <thead>
       <tr>
@@ -9,15 +11,43 @@
     </thead>
     <tbody>
       {% for bookmark in bookmarks %}
-        <tr>
+        <tr class="bookmark">
           <td>
+            <input type="checkbox" name="bookmark" value="{{ bookmark._id }}">
             <a href="{{ bookmark.url }}">{{ bookmark.title }}</a>
           </td>
           <td>
             <a href="{{ reverse_url('edit', bookmark._id) }}">Edit</a>
+            <!--<a href="#" class="btn small danger">Delete</a>-->
           </td>
         </tr>
       {% end %}
     </tbody>
   </table>
+{% end %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+  var r = document.cookie.match("\\b" + name + "=([^;]*)\\b");
+  return r ? r[1] : undefined;
+}
+
+$.ajaxSetup({
+  data: {_xsrf: getCookie('_xsrf')}
+});
+
+console.log({data: {_xsrf: getCookie('_xsrf')}})
+
+$('#delete-bookmarks').click(function(e) {
+  e.preventDefault();
+  var el = $('tr.bookmark').find('input:checked');
+  $.post("{{ reverse_url('delete_multi') }}",
+    {ids: $.map(el, function(a) { return $(a).val() })},
+    function() {
+      el.parents('tr').fadeOut('slow');
+    }
+  );
+});
+</script>
 {% end %}

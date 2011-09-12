@@ -24,8 +24,8 @@ from pymongo.objectid import ObjectId
 # App imports
 import forms
 import importer
-# import models
 import uimodules
+import util
 
 # Options
 define("port", default=8888, type=int)
@@ -43,6 +43,7 @@ class Application(tornado.web.Application):
       url(r'/new', NewBookmarkHandler, name='new'),
       url(r'/b', BookmarkletHandler, name='bookmarklet'),
       url(r'/tags', TagsHandler, name='tags'),
+      url(r'/delete_multi', DeleteMultipleBookmarksHandler, name='delete_multi'),
     ]
     settings = dict(
       debug=self.config.debug,
@@ -56,6 +57,12 @@ class Application(tornado.web.Application):
     tornado.web.Application.__init__(self, handlers, **settings)
     self.connection = pymongo.Connection()
     self.db = self.connection[self.config.mongodb_database]
+    # Create pymongo indexes
+    self.db.users.ensure_index('email')
+    self.db.bookmarks.ensure_index('user')
+    self.db.bookmarks.ensure_index([('user', pymongo.DESCENDING),
+                                    ('url_digest', pymongo.DESCENDING)])
+    self.db.tags.ensure_index('user')
 
   @property
   def config(self):
@@ -148,7 +155,7 @@ class LogoutHandler(BaseHandler):
 class HomeHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
-    # compute_tags(self.db, self.current_user)
+    compute_tags(self.db, self.current_user)
     query = {'user': self.current_user['_id']}
 
     tag = self.get_argument('tag', None)
@@ -178,7 +185,8 @@ class ImportHandler(BaseHandler):
 class EditBookmarkHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self, id):
-    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id), _id=ObjectId(id)))
+    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id),
+                                               _id=ObjectId(id)))
     if bookmark is None:
       raise tornado.web.HTTPError(404)
     form = forms.BookmarkForm(obj=tornado.web._O(bookmark))
@@ -186,7 +194,8 @@ class EditBookmarkHandler(BaseHandler):
 
   @tornado.web.authenticated
   def post(self, id):
-    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id), _id=ObjectId(id)))
+    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id),
+                                               _id=ObjectId(id)))
     if bookmark is None:
       raise tornado.web.HTTPError(404)
     bookmark = tornado.web._O(bookmark)
@@ -227,11 +236,16 @@ class BookmarkletHandler(BaseHandler):
     if form.validate():
       if not form.title.data:
         form.title.data = form.url.data
-      bookmark = self.current_user.get_bookmark_by_url(form.url.data)
+      url_digest = util.md5(form.url.data)
+      bookmark = self.db.bookmarks.find_one({
+          'user': self.current_user._id,
+          'url_digest': url_digest})
       if bookmark is None:
-        bookmark = models.Bookmark(user=self.current_user)
+        bookmark = {'user': self.current_user._id,
+                    'modified': datetime.datetime.now()}
+      bookmark = tornado.web._O(bookmark)
       form.populate_obj(bookmark)
-      bookmark.save()
+      self.db.bookmarks.save(bookmark)
       self.write('oldu')
     else:
       self.write('%s' % form.errors)
@@ -246,6 +260,14 @@ class TagsHandler(BaseHandler):
     self.render('tags.html', tags=(tornado.web._O(tag) for tag in tags))
 
 
+class DeleteMultipleBookmarksHandler(BaseHandler):
+  @tornado.web.authenticated
+  def post(self):
+    ids = [ObjectId(id) for id in self.get_arguments('ids[]')]
+    bookmarks = self.db.bookmarks.remove({
+      'user': self.current_user._id, '_id': {'$in': ids}})
+    self.finish()
+
 def compute_tags(db, user):
   count = collections.defaultdict(int)
   tags = []
@@ -254,7 +276,6 @@ def compute_tags(db, user):
       continue
     for tag in bookmark['tags']:
       count[tag] += 1
-
   for tag, count in count.items():
     tags.append({
       "user" : user._id,

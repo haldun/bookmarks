@@ -1,3 +1,8 @@
+import hashlib
+
+def md5(s):
+  return hashlib.md5(s).hexdigest()
+
 # Copied from django with some modifications
 import copy
 
