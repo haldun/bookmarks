@@ -32,6 +32,7 @@ class Application(tornado.web.Application):
       url(r'/auth/google', GoogleAuthHandler, name='auth_google'),
       url(r'/home', HomeHandler, name='home'),
       url(r'/import', ImportHandler, name='import'),
+      url(r'/edit/(?P<id>\w+)', EditBookmarkHandler, name='edit'),
     ]
     settings = dict(
       debug=self.config.debug,
@@ -118,6 +119,31 @@ class ImportHandler(BaseHandler):
       title = link.text
       bookmark = models.Bookmark(user=self.current_user, title=title, url=url)
       bookmark.save()
+
+
+class EditBookmarkHandler(BaseHandler):
+  @tornado.web.authenticated
+  def get(self, id):
+    try:
+      bookmark = models.Bookmark.objects.get(user=self.current_user, id=id)
+    except models.Bookmark.DoesNotExist:
+      raise tornado.web.HTTPError(404)
+    form = forms.BookmarkForm(obj=bookmark)
+    self.render('edit.html', form=form)
+
+  @tornado.web.authenticated
+  def post(self, id):
+    try:
+      bookmark = models.Bookmark.objects.get(user=self.current_user, id=id)
+    except models.Bookmark.DoesNotExist:
+      raise tornado.web.HTTPError(404)
+    form = forms.BookmarkForm(self, obj=bookmark)
+    if form.validate():
+      form.populate_obj(bookmark)
+      bookmark.save()
+      self.redirect(self.reverse_url('home'))
+    else:
+      self.render('edit.html', form=form)
 
 
 def main():

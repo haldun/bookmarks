@@ -1,4 +1,5 @@
 body{padding-top:45px}
 h1,h2,h3,h4 { font-family: 'Open Sans'; font-weight:400;}
 #q {width: 300px}
-.sidebar { position:fixed; padding-top:10px;}
+.sidebar { position:fixed }
+form.bookmark input[type=text], form.bookmark textarea { width: 500px}

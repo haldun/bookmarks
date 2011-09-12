@@ -17,3 +17,8 @@ class BaseForm(Form):
 class HelloForm(BaseForm):
   planet = TextField('name', validators=[Required()])
 
+
+class BookmarkForm(BaseForm):
+  title = TextField('Title', [Required()])
+  url = TextField('Url', [Required()])
+  description = TextAreaField('Description')

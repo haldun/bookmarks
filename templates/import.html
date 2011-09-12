@@ -1,4 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
+  <h3>Import Your Bookmarks</h3>
+
+  <form action="{{ reverse_url('import') }}" method="post" enctype="multipart/form-data">
+    {% raw xsrf_form_html() %}
+    <p><input type="file" name="file"></p>
+    <input type="submit" class="btn" value="Import My Bookmarks">
+  </form>
 {% end %}

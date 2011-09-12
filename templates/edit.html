@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Editing bookmark</h2>
+  <br>
+  <form action="" method="post" class="bookmark">
+    {% module Form(form) %}
+    <div class="actions">
+      <input type="submit" class="btn primary" value="Save">
+      <a href="{{ reverse_url('home') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+{% end %}
