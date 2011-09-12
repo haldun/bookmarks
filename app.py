@@ -1,4 +1,5 @@
 # Python imports
+import datetime
 import logging
 import os
 
@@ -17,10 +18,12 @@ import pylibmc
 import yaml
 import pymongo
 
+from pymongo.objectid import ObjectId
+
 # App imports
 import forms
 import importer
-import models
+# import models
 import uimodules
 
 # Options
@@ -50,7 +53,8 @@ class Application(tornado.web.Application):
       ui_modules=uimodules,
     )
     tornado.web.Application.__init__(self, handlers, **settings)
-    mongoengine.connect(self.config.mongodb_database)
+    self.connection = pymongo.Connection()
+    self.db = self.connection[self.config.mongodb_database]
 
   @property
   def config(self):
@@ -70,19 +74,27 @@ class Application(tornado.web.Application):
 
 
 class BaseHandler(tornado.web.RequestHandler):
+  @property
+  def db(self):
+    return self.application.db
+
   def get_current_user(self):
     user_id = self.get_secure_cookie('user_id')
     if not user_id:
       return None
-    return models.User.objects(id=user_id).first()
+    user = self.db.users.find_one({'_id': pymongo.objectid.ObjectId(user_id)})
+    if user is None:
+      return None
+    return tornado.web._O(user)
 
   def render_string(self, template_name, **kwargs):
     if self.current_user is not None:
-      tags = self.application.memcache.get('%s/tags' % self.current_user.id)
+      tags = self.application.memcache.get('%s/tags' % self.current_user['_id'])
       if tags is None:
-        tags = list(models.Tag.objects.filter(user=self.current_user) \
-                                 .order_by('-count').limit(20))
-        self.application.memcache.set('%s/tags' % self.current_user.id, tags)
+        tags = list(self.db.tags.find({'user': self.current_user['_id']},
+                                      sort=[('count', pymongo.DESCENDING)],
+                                      limit=20))
+        self.application.memcache.set('%s/tags' % self.current_user['_id'], tags)
     else:
       tags = []
     return tornado.web.RequestHandler.render_string(
@@ -114,11 +126,15 @@ class GoogleAuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     if not guser:
       raise tornado.web.HTTPError(500, "Google auth failed")
 
-    user = models.User.objects(email=guser['email']).first()
+    user = self.db.users.find_one({'email': guser['email']})
+
     if user is None:
-      user = models.User(email=guser['email'], name=guser['name'])
-      user.save()
-    self.set_secure_cookie('user_id', str(user.id))
+      user = {
+        'email': guser['email'],
+        'name': guser['name'],
+      }
+      self.db.users.insert(user)
+    self.set_secure_cookie('user_id', str(user['_id']))
     self.redirect(self.reverse_url('home'))
 
 
@@ -132,13 +148,13 @@ class HomeHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
     # self.current_user.compute_tags()
-    query = {'user.$id': self.current_user.id}
+    query = {'user': self.current_user['_id']}
 
     tag = self.get_argument('tag', None)
     if tag is not None:
       query['tags'] = tag
 
-    bookmarks = models.Bookmark._get_collection().find(
+    bookmarks = self.db.bookmarks.find(
         query,
         sort=[('modified', pymongo.DESCENDING)],
         skip=int(self.get_argument('offset', 0)),
@@ -154,30 +170,29 @@ class ImportHandler(BaseHandler):
   @tornado.web.authenticated
   def post(self):
     file = self.request.files.get('file')[0]
-    importer.Importer(self.current_user, file['body']).import_bookmarks()
+    importer.Importer(self.db, self.current_user, file['body']).import_bookmarks()
     self.redirect(self.reverse_url('home'))
 
 
 class EditBookmarkHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self, id):
-    try:
-      bookmark = models.Bookmark.objects.get(user=self.current_user, id=id)
-    except models.Bookmark.DoesNotExist:
+    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id), _id=ObjectId(id)))
+    if bookmark is None:
       raise tornado.web.HTTPError(404)
-    form = forms.BookmarkForm(obj=bookmark)
+    form = forms.BookmarkForm(obj=tornado.web._O(bookmark))
     self.render('edit.html', form=form)
 
   @tornado.web.authenticated
   def post(self, id):
-    try:
-      bookmark = models.Bookmark.objects.get(user=self.current_user, id=id)
-    except models.Bookmark.DoesNotExist:
+    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id), _id=ObjectId(id)))
+    if bookmark is None:
       raise tornado.web.HTTPError(404)
+    bookmark = tornado.web._O(bookmark)
     form = forms.BookmarkForm(self, obj=bookmark)
     if form.validate():
       form.populate_obj(bookmark)
-      bookmark.save()
+      self.db.bookmarks.save(bookmark)
       self.redirect(self.reverse_url('home'))
     else:
       self.render('edit.html', form=form)
@@ -193,11 +208,12 @@ class NewBookmarkHandler(BaseHandler):
   def post(self):
     form = forms.BookmarkForm(self)
     if form.validate():
-      bookmark = self.current_user.get_bookmark_by_url(form.url.data)
+      bookmark = self.db.bookmarks.find_one({'user': self.current_user._id, 'url': form.url.data})
       if bookmark is None:
-        bookmark = models.Bookmark(user=self.current_user)
+        bookmark = dict(user=self.current_user._id, modified=datetime.datetime.now())
+      bookmark = tornado.web._O(bookmark)
       form.populate_obj(bookmark)
-      bookmark.save()
+      self.db.bookmarks.insert(bookmark)
       self.redirect(self.reverse_url('home'))
     else:
       self.render('new.html', form=form)

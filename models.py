@@ -67,6 +67,7 @@ class Bookmark(Document):
     self.url_digest = hashlib.md5(self.url.encode('utf8')).hexdigest()
     return super(Bookmark, self).save(*args, **kwds)
 
+
 class Tag(Document):
   user = ReferenceField(User)
   name = StringField()

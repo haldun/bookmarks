@@ -5,17 +5,16 @@ from lxml import etree
 from pymongo.objectid import ObjectId
 from bson.dbref import DBRef
 
-import models
-
 class Importer(object):
-  def __init__(self, owner, contents):
+  def __init__(self, db, owner, contents):
+    self.db = db
     self.owner = owner
     self.contents = contents
 
   def import_bookmarks(self):
-    collection = models.Bookmark._get_collection()
+    collection = self.db.bookmarks
     url_digests = dict((b['url_digest'], b['_id'])
-        for b in collection.find({'user.$id': self.owner._id}, fields=['url_digest']))
+        for b in collection.find({'user': self.owner._id}, fields=['url_digest']))
     root = etree.fromstring(self.contents, etree.HTMLParser())
     bookmarks = list()
 
@@ -29,11 +28,7 @@ class Importer(object):
       url_digest = hashlib.md5(url.encode('utf8')).hexdigest()
 
       bookmark = {
-        '_cls': 'Bookmark',
-        "_types" : [
-		      "Bookmark"
-	      ],
-	      "user" : DBRef('user', self.owner._id),
+	      "user" : self.owner._id,
 	      'url': url,
 	      'url_digest': url_digest,
 	      'title': title or url,

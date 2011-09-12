@@ -23,7 +23,7 @@
           <ul class="nav secondary-nav">
             <li class="dropdown">
               <a href="#" class="dropdown-toggle">
-                <img src="{{ current_user.avatar }}" align="absmiddle"> {{ current_user.name }}</a>
+                {{ current_user.name }}</a>
               <ul class="dropdown-menu">
                 <li><a href="{{ reverse_url('logout') }}">Log out</a></li>
               </ul>
