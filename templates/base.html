@@ -17,14 +17,15 @@
             <input type="text" placeholder="Search" id="q">
           </form>
           <ul class="nav">
-            <li><a href="#">New Bookmark</a></li>
-            <li><a href="{{ reverse_url('import') }}">Import Bookmarks</a></li>
+            <li><a href="{{ reverse_url('new') }}">+ New Bookmark</a></li>
+            <li><a href="{{ reverse_url('import') }}">↑ Import Bookmarks</a></li>
           </ul>
           <ul class="nav secondary-nav">
             <li class="dropdown">
-              <a href="#" class="dropdown-toggle">{{ current_user.name }}</a>
+              <a href="#" class="dropdown-toggle">
+                <img src="{{ current_user.avatar }}" align="absmiddle"> {{ current_user.name }}</a>
               <ul class="dropdown-menu">
-                <li><a href="#">Log out</a></li>
+                <li><a href="{{ reverse_url('logout') }}">Log out</a></li>
               </ul>
             </li>
           </ul>
@@ -37,7 +38,7 @@
       {% block sidebar %}
         <h4>Bookmarklet</h4>
         <p>
-          <a href="" class="btn primary">Drag me to the bookmarks bar</a>
+          <a href="" class="btn primary">Drag me to bookmarks bar</a>
         </p>
         <h4>Timeline</h4>
         <ul class="unstyled">
@@ -46,9 +47,6 @@
           <li><a href="">2011 June</a></li>
         </ul>
         <h4>Tags</h4>
-        {% for i in range(30) %}
-          <a href="">tag {{ i }}</a> •
-        {% end %}
       {% end %}
     </div>
     <div class="content">

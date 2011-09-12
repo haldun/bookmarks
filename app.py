@@ -12,12 +12,12 @@ import tornado.web
 from tornado.options import define, options
 from tornado.web import url
 
-from lxml import etree
 import mongoengine
 import yaml
 
 # App imports
 import forms
+import importer
 import models
 import uimodules
 
@@ -30,9 +30,11 @@ class Application(tornado.web.Application):
     handlers = [
       url(r'/', IndexHandler, name='index'),
       url(r'/auth/google', GoogleAuthHandler, name='auth_google'),
+      url(r'/logout', LogoutHandler, name='logout'),
       url(r'/home', HomeHandler, name='home'),
       url(r'/import', ImportHandler, name='import'),
       url(r'/edit/(?P<id>\w+)', EditBookmarkHandler, name='edit'),
+      url(r'/new', NewBookmarkHandler, name='new'),
     ]
     settings = dict(
       debug=self.config.debug,
@@ -96,6 +98,12 @@ class GoogleAuthHandler(BaseHandler, tornado.auth.GoogleMixin):
     self.redirect(self.reverse_url('home'))
 
 
+class LogoutHandler(BaseHandler):
+  def get(self):
+    self.clear_cookie('user_id')
+    self.redirect(self.reverse_url('home'))
+
+
 class HomeHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
@@ -111,14 +119,8 @@ class ImportHandler(BaseHandler):
   @tornado.web.authenticated
   def post(self):
     file = self.request.files.get('file')[0]
-    root = etree.fromstring(file['body'], etree.HTMLParser())
-    for link in root.xpath('//a'):
-      url = link.attrib.get('href')
-      if not url.startswith('http'):
-        continue
-      title = link.text
-      bookmark = models.Bookmark(user=self.current_user, title=title, url=url)
-      bookmark.save()
+    importer.Importer(self.current_user, file['body']).import_bookmarks()
+    self.redirect(self.reverse_url('home'))
 
 
 class EditBookmarkHandler(BaseHandler):
@@ -144,6 +146,24 @@ class EditBookmarkHandler(BaseHandler):
       self.redirect(self.reverse_url('home'))
     else:
       self.render('edit.html', form=form)
+
+
+class NewBookmarkHandler(BaseHandler):
+  @tornado.web.authenticated
+  def get(self):
+    form = forms.BookmarkForm()
+    self.render('new.html', form=form)
+
+  @tornado.web.authenticated
+  def post(self):
+    form = forms.BookmarkForm(self)
+    if form.validate():
+      bookmark = models.Bookmark(user=self.current_user)
+      form.populate_obj(bookmark)
+      bookmark.save()
+      self.redirect(self.reverse_url('home'))
+    else:
+      self.render('new.html', form=form)
 
 
 def main():
