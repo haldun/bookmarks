@@ -4,7 +4,7 @@
   <table class="zebra-striped">
     <thead>
       <tr>
-        <th>Bookmarks</th>
+        <th>All Bookmarks</th>
       </tr>
     </thead>
     <tbody>
@@ -26,6 +26,19 @@
 {% end %}
 
 {% block sidebar %}
-  <p><a href="" class="btn primary">New Bookmark</a></p>
-  <a href="" class="btn">Bookmarklet!</a>
+  <h4>Bookmarklet</h4>
+  <p>
+    <a href="" class="btn primary">Drag me to the bookmarks bar</a>
+  </p>
+  <h4>Timeline</h4>
+  <ul class="unstyled">
+    <li><a href="">2011 August</a></li>
+    <li><a href="">2011 July</a></li>
+    <li><a href="">2011 June</a></li>
+  </ul>
+  <h4>Tags</h4>
+  {% for i in range(30) %}
+    <a href="">tag {{ i }}</a> •
+  {% end %}
+
 {% end %}

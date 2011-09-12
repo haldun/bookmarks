@@ -98,7 +98,7 @@ class GoogleAuthHandler(BaseHandler, tornado.auth.GoogleMixin):
 class HomeHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
-    bookmarks = models.Bookmark.objects.filter(user=self.current_user)
+    bookmarks = models.Bookmark.objects.filter(user=self.current_user)[:25]
     self.render('home.html', bookmarks=bookmarks)
 
 
