@@ -1,11 +1,21 @@
-from sqlalchemy import create_engine
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
-from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from mongoengine import *
+import datetime
+import hashlib
 
-Base = declarative_base()
+class User(Document):
+  email = StringField(required=True)
+  name = StringField(max_length=200)
+  date_modified = DateTimeField(default=datetime.datetime.now)
 
-def init_db(engine):
-  Base.metadata.create_all(bind=engine)
+class Bookmark(Document):
+  user = ReferenceField(User)
+  url = StringField()
+  url_digest = StringField()
+  title = StringField()
+  description = StringField()
+  tags = ListField(StringField(max_length=60))
+  date_modified = DateTimeField(default=datetime.datetime.now)
 
-# Put your models here
+  def save(self, *args, **kwds):
+    self.url_digest = hashlib.md5(self.url).hexdigest()
+    return super(Bookmark, self).save(*args, **kwds)

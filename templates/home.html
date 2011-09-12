@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <table class="zebra-striped">
+    <thead>
+      <tr>
+        <th>Bookmarks</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for bookmark in bookmarks %}
+        <tr>
+          <td>
+            <a href="{{ bookmark.url }}">{{ bookmark.title }}</a>
+          </td>
+        </tr>
+      {% end %}
+    </tbody>
+  </table>
+
+  <form action="{{ reverse_url('import') }}" method="post" enctype="multipart/form-data">
+    {% raw xsrf_form_html() %}
+    <input type="file" name="file">
+    <input type="submit" class="btn" value="Import My Bookmarks">
+  </form>
+{% end %}
+
+{% block sidebar %}
+  <p><a href="" class="btn primary">New Bookmark</a></p>
+  <a href="" class="btn">Bookmarklet!</a>
+{% end %}

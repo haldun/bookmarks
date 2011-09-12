@@ -1,4 +1,5 @@
 # Python imports
+import logging
 import os
 
 # Tornado imports
@@ -11,9 +12,9 @@ import tornado.web
 from tornado.options import define, options
 from tornado.web import url
 
-# Sqlalchemy imports
-from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
+from lxml import etree
+import mongoengine
+import yaml
 
 # App imports
 import forms
@@ -21,34 +22,44 @@ import models
 import uimodules
 
 # Options
-define("port", default=8888, help="run on the given port", type=int)
-define("debug", default=False, type=bool)
-define("db_path", default='sqlite:////tmp/test.db', type=str)
+define("port", default=8888, type=int)
+define("config_file", default="app_config.yml", help="app_config file")
 
 class Application(tornado.web.Application):
   def __init__(self):
     handlers = [
       url(r'/', IndexHandler, name='index'),
+      url(r'/auth/google', GoogleAuthHandler, name='auth_google'),
+      url(r'/home', HomeHandler, name='home'),
+      url(r'/import', ImportHandler, name='import'),
     ]
     settings = dict(
-      debug=options.debug,
+      debug=self.config.debug,
+      login_url='/auth/google',
       static_path=os.path.join(os.path.dirname(__file__), "static"),
       template_path=os.path.join(os.path.dirname(__file__), 'templates'),
       xsrf_cookies=True,
-      # TODO Change this to a random string
-      cookie_secret="nzjxcjasduuqwheazmu293nsadhaslzkci9023nsadnua9sdads/Vo=",
+      cookie_secret=self.config.cookie_secret,
       ui_modules=uimodules,
     )
     tornado.web.Application.__init__(self, handlers, **settings)
-    engine = create_engine(options.db_path, convert_unicode=True, echo=options.debug)
-    models.init_db(engine)
-    self.db = scoped_session(sessionmaker(bind=engine))
+    mongoengine.connect(self.config.mongodb_database)
+
+  @property
+  def config(self):
+    if not hasattr(self, '_config'):
+      logging.debug("Loading app config")
+      stream = file(options.config_file, 'r')
+      self._config = tornado.web._O(yaml.load(stream))
+    return self._config
 
 
 class BaseHandler(tornado.web.RequestHandler):
-  @property
-  def db(self):
-    return self.application.db
+  def get_current_user(self):
+    user_id = self.get_secure_cookie('user_id')
+    if not user_id:
+      return None
+    return models.User.objects(id=user_id).first()
 
 
 class IndexHandler(BaseHandler):
@@ -64,7 +75,50 @@ class IndexHandler(BaseHandler):
       self.render('index.html', form=form)
 
 
-# Write your handlers here
+class GoogleAuthHandler(BaseHandler, tornado.auth.GoogleMixin):
+  @tornado.web.asynchronous
+  def get(self):
+    if self.get_argument('openid.mode', None):
+      self.get_authenticated_user(self.async_callback(self._on_auth))
+      return
+    self.authenticate_redirect()
+
+  def _on_auth(self, guser):
+    if not guser:
+      raise tornado.web.HTTPError(500, "Google auth failed")
+
+    user = models.User.objects(email=guser['email']).first()
+    if user is None:
+      user = models.User(email=guser['email'], name=guser['name'])
+      user.save()
+    self.set_secure_cookie('user_id', str(user.id))
+    self.redirect(self.reverse_url('home'))
+
+
+class HomeHandler(BaseHandler):
+  @tornado.web.authenticated
+  def get(self):
+    bookmarks = models.Bookmark.objects.filter(user=self.current_user)
+    self.render('home.html', bookmarks=bookmarks)
+
+
+class ImportHandler(BaseHandler):
+  @tornado.web.authenticated
+  def get(self):
+    self.render('import.html')
+
+  @tornado.web.authenticated
+  def post(self):
+    file = self.request.files.get('file')[0]
+    root = etree.fromstring(file['body'], etree.HTMLParser())
+    for link in root.xpath('//a'):
+      url = link.attrib.get('href')
+      if not url.startswith('http'):
+        continue
+      title = link.text
+      bookmark = models.Bookmark(user=self.current_user, title=title, url=url)
+      bookmark.save()
+
 
 def main():
   tornado.options.parse_command_line()
