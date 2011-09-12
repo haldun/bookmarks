@@ -1,4 +1,5 @@
 # Python imports
+import collections
 import datetime
 import logging
 import os
@@ -147,7 +148,7 @@ class LogoutHandler(BaseHandler):
 class HomeHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
-    # self.current_user.compute_tags()
+    # compute_tags(self.db, self.current_user)
     query = {'user': self.current_user['_id']}
 
     tag = self.get_argument('tag', None)
@@ -239,9 +240,29 @@ class BookmarkletHandler(BaseHandler):
 class TagsHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self):
-    self.render('tags.html',
-        tags=models.Tag.objects.filter(user=self.current_user).limit(50).order_by('-count'))
+    tags = self.db.tags.find({'user': self.current_user._id},
+                            sort=[('count', pymongo.DESCENDING)],
+                            limit=20)
+    self.render('tags.html', tags=(tornado.web._O(tag) for tag in tags))
 
+
+def compute_tags(db, user):
+  count = collections.defaultdict(int)
+  tags = []
+  for bookmark in db.bookmarks.find({'user': user._id}, fields=['tags']):
+    if 'tags' not in bookmark:
+      continue
+    for tag in bookmark['tags']:
+      count[tag] += 1
+
+  for tag, count in count.items():
+    tags.append({
+      "user" : user._id,
+      'name': tag,
+      'count': count,
+    })
+  db.tags.remove({'user': user._id})
+  db.tags.insert(tags)
 
 def main():
   tornado.options.parse_command_line()

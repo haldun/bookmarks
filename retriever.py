@@ -39,6 +39,8 @@ class Retriever(object):
       task = self.db.tasks.find_one()
       if task is None:
         logging.info("Task queue is currently empty.")
+      else:
+        logging.info(task['url'])
       logging.info("Sleeping for 1 second")
       time.sleep(1)
 

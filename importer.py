@@ -54,3 +54,12 @@ class Importer(object):
 
     if bookmarks:
       collection.insert(bookmarks)
+      tasks = []
+      for bookmark in bookmarks:
+        tasks.append({
+          'url': bookmark['url'],
+          'user': self.owner._id,
+          'bookmark': bookmark['url_digest'],
+          'status': False,
+        })
+      self.db.tasks.insert(tasks)
