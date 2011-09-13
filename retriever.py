@@ -57,7 +57,6 @@ class Retriever(object):
 
     while True:
       queue = list(self.db.tasks.find(limit=20))
-      print len(queue)
 
       while queue and freelist:
         task = queue.pop(0)

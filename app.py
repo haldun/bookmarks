@@ -106,20 +106,13 @@ class BaseHandler(tornado.web.RequestHandler):
     else:
       tags = []
     return tornado.web.RequestHandler.render_string(
-        self, template_name, popular_tags=tags, IS_DEBUG=self.application.config.debug, **kwargs)
+        self, template_name, popular_tags=tags,
+        IS_DEBUG=self.application.config.debug, **kwargs)
 
 
 class IndexHandler(BaseHandler):
   def get(self):
-    form = forms.HelloForm()
-    self.render('index.html', form=form)
-
-  def post(self):
-    form = forms.HelloForm(self)
-    if form.validate():
-      self.write('Hello %s' % form.planet.data)
-    else:
-      self.render('index.html', form=form)
+    self.render('index.html')
 
 
 class GoogleAuthHandler(BaseHandler, tornado.auth.GoogleMixin):
@@ -149,7 +142,7 @@ class GoogleAuthHandler(BaseHandler, tornado.auth.GoogleMixin):
 class LogoutHandler(BaseHandler):
   def get(self):
     self.clear_cookie('user_id')
-    self.redirect(self.reverse_url('home'))
+    self.redirect(self.reverse_url('index'))
 
 
 class HomeHandler(BaseHandler):
@@ -185,8 +178,8 @@ class ImportHandler(BaseHandler):
 class EditBookmarkHandler(BaseHandler):
   @tornado.web.authenticated
   def get(self, id):
-    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id),
-                                               _id=ObjectId(id)))
+    bookmark = self.db.bookmarks.find_one(
+      dict(user=ObjectId(self.current_user._id), _id=ObjectId(id)))
     if bookmark is None:
       raise tornado.web.HTTPError(404)
     form = forms.BookmarkForm(obj=tornado.web._O(bookmark))
@@ -194,8 +187,8 @@ class EditBookmarkHandler(BaseHandler):
 
   @tornado.web.authenticated
   def post(self, id):
-    bookmark = self.db.bookmarks.find_one(dict(user=ObjectId(self.current_user._id),
-                                               _id=ObjectId(id)))
+    bookmark = self.db.bookmarks.find_one(
+      dict(user=ObjectId(self.current_user._id), _id=ObjectId(id)))
     if bookmark is None:
       raise tornado.web.HTTPError(404)
     bookmark = tornado.web._O(bookmark)
@@ -218,9 +211,11 @@ class NewBookmarkHandler(BaseHandler):
   def post(self):
     form = forms.BookmarkForm(self)
     if form.validate():
-      bookmark = self.db.bookmarks.find_one({'user': self.current_user._id, 'url': form.url.data})
+      bookmark = self.db.bookmarks.find_one({
+        'user': self.current_user._id, 'url': form.url.data})
       if bookmark is None:
-        bookmark = dict(user=self.current_user._id, modified=datetime.datetime.now())
+        bookmark = dict(user=self.current_user._id,
+                        modified=datetime.datetime.now())
       bookmark = tornado.web._O(bookmark)
       form.populate_obj(bookmark)
       self.db.bookmarks.insert(bookmark)
